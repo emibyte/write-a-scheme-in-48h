@@ -68,8 +68,8 @@ executable myProject
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.20.2.0
-                      parsec ^>=1.0.0.0
+    build-depends:    base ^>=4.20.2.0,
+                      parsec
 
     -- Directories containing source files.
     hs-source-dirs:   app
