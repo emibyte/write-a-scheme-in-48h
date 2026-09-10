@@ -4,14 +4,15 @@ import System.Environment
 
 main :: IO ()
 main = exerciseThree
+
 -- main = do
 --   args <- getArgs
 --   putStrLn ("Hello, " ++ args !! 0)
 
-exerciseOne :: IO()
+exerciseOne :: IO ()
 exerciseOne = do
   args <- getArgs
-  putStrLn(args !! 0 ++ args !! 1)
+  putStrLn (args !! 0 ++ args !! 1)
 
 exerciseTwo :: IO ()
 exerciseTwo = do
@@ -25,4 +26,3 @@ exerciseThree = do
   putStrLn "What's ur name?"
   input <- getLine
   putStrLn ("Hello, " ++ input)
-
