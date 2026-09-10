@@ -21,6 +21,7 @@
       devShells.default = pkgs.mkShell {
         packages = [
           ghc
+          pkgs.cabal-install
           pkgs.haskellPackages.cabal-install
           pkgs.haskell-language-server
         ];
