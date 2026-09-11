@@ -1,8 +1,8 @@
 module Main (main) where
 
+import Control.Monad (liftM)
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
-import Control.Monad (liftM)
 
 data LispVal
   = Atom String
@@ -24,7 +24,7 @@ spaces :: Parser ()
 spaces = skipMany1 space
 
 readExpr :: String -> String
-readExpr input = case parse (spaces >> symbol) "lisp" input of
+readExpr input = case parse parseExpr "lisp" input of
   Left err -> "No match: " ++ show err
   Right val -> "Found value"
 
@@ -47,3 +47,19 @@ parseAtom = do
 
 parseNumber :: Parser LispVal
 parseNumber = liftM (Number . read) $ many1 digit
+
+-- exercise 1.1
+parseNumber' :: Parser LispVal
+parseNumber' = do
+  digits <- many1 digit
+  (return . Number . read) digits
+
+-- exercise 1.2
+parseNumber'' :: Parser LispVal
+parseNumber'' = many1 digit >>= return . Number . read
+
+parseExpr :: Parser LispVal
+parseExpr =
+  parseAtom
+    <|> parseString
+    <|> parseNumber
