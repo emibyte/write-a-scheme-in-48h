@@ -28,10 +28,16 @@ readExpr input = case parse parseExpr "lisp" input of
   Left err -> "No match: " ++ show err
   Right val -> "Found value"
 
+escapedChars :: Parser Char
+escapedChars = do
+  char '\\'
+  x <- oneOf "\\\""
+  return x
+
 parseString :: Parser LispVal
 parseString = do
   char '"'
-  x <- many (noneOf "\"")
+  x <- many (escapedChars <|> noneOf "\"\\")
   char '"'
   return $ String x
 
