@@ -38,6 +38,7 @@ parseString :: Parser LispVal
 parseString = do
   char '"'
   x <- many (escapedChars <|> noneOf "\"\\")
+  -- x <- many $ many1 (noneOf "\"\\") <|> escapedChars
   char '"'
   return $ String x
 
