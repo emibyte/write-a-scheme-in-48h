@@ -11,6 +11,7 @@ data LispVal
   | Number Integer
   | String String
   | Bool Bool
+  deriving (Show)
 
 main :: IO ()
 main = do
@@ -26,19 +27,23 @@ spaces = skipMany1 space
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
   Left err -> "No match: " ++ show err
-  Right val -> "Found value"
+  Right val -> "Found value" ++ show val
 
 escapedChars :: Parser Char
 escapedChars = do
   char '\\'
-  x <- oneOf "\\\""
-  return x
+  x <- oneOf "\\\"nrt"
+  return $ case x of
+    '\\' -> x
+    '"' -> x
+    'n' -> '\n'
+    'r' -> '\r'
+    't' -> '\t'
 
 parseString :: Parser LispVal
 parseString = do
   char '"'
-  x <- many (escapedChars <|> noneOf "\"\\")
-  -- x <- many $ many1 (noneOf "\"\\") <|> escapedChars
+  x <- many $ escapedChars <|> noneOf "\"\\"
   char '"'
   return $ String x
 
