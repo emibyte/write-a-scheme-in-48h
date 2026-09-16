@@ -1,7 +1,8 @@
 module Main (main) where
 
 import Control.Monad (liftM)
-import Data.Char
+import Data.Complex
+import Data.Ratio
 import Numeric
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
@@ -12,6 +13,8 @@ data LispVal
   | DottedList [LispVal] LispVal
   | Number Integer
   | Float Double
+  | Rational Rational
+  | Complex (Complex Double)
   | String String
   | Character Char
   | Bool Bool
@@ -134,11 +137,32 @@ parseFloat = do
   let (parsed, _) = (readFloat $ first ++ "." ++ after) !! 0
   return $ Float parsed
 
+parseRational :: Parser LispVal
+parseRational = do
+  numerator <- many1 digit
+  char '/'
+  denominator <- many1 digit
+  return $ Rational $ (read numerator) % (read denominator)
+
+parseComplex :: Parser LispVal
+parseComplex = do
+  real <- (try parseFloat <|> parseDecimal)
+  char '+'
+  imaginary <- (try parseFloat <|> parseDecimal)
+  char 'i'
+  return $ Complex (toDouble real :+ toDouble imaginary)
+
+toDouble :: LispVal -> Double
+toDouble (Float f) = f
+toDouble (Number n) = fromIntegral n
+
 parseExpr :: Parser LispVal
 parseExpr =
   parseAtom
     <|> parseString
+    <|> try parseComplex
     <|> try parseFloat
+    <|> try parseRational
     <|> try parseNumber
     <|> try parseBool
     <|> try parseCharacter
