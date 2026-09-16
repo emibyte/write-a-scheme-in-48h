@@ -11,6 +11,7 @@ data LispVal
   | List [LispVal]
   | DottedList [LispVal] LispVal
   | Number Integer
+  | Float Double
   | String String
   | Character Char
   | Bool Bool
@@ -124,10 +125,20 @@ parseNumber' = do
 parseNumber'' :: Parser LispVal
 parseNumber'' = many1 digit >>= return . Number . read
 
+-- TODO(emi): #e and #i for exactness
+parseFloat :: Parser LispVal
+parseFloat = do
+  first <- many1 digit
+  char '.'
+  after <- many1 digit
+  let (parsed, _) = (readFloat $ first ++ "." ++ after) !! 0
+  return $ Float parsed
+
 parseExpr :: Parser LispVal
 parseExpr =
   parseAtom
     <|> parseString
+    <|> try parseFloat
     <|> try parseNumber
     <|> try parseBool
     <|> try parseCharacter
