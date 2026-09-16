@@ -12,6 +12,7 @@ data LispVal
   | DottedList [LispVal] LispVal
   | Number Integer
   | String String
+  | Character Char
   | Bool Bool
   deriving (Show)
 
@@ -104,6 +105,15 @@ parseHexadecimal = do
 hex2dig :: [Char] -> Integer
 hex2dig x = fst (readHex x !! 0)
 
+parseCharacter :: Parser LispVal
+parseCharacter = do
+  try $ string "#\\"
+  value <- try (string "newline" <|> string "space") <|> do x <- anyChar; notFollowedBy alphaNum; return [x]
+  return $ case value of
+    "space" -> Character ' '
+    "newline" -> Character '\n'
+    otherwise -> Character (value !! 0)
+
 -- exercise 1.1
 parseNumber' :: Parser LispVal
 parseNumber' = do
@@ -118,5 +128,6 @@ parseExpr :: Parser LispVal
 parseExpr =
   parseAtom
     <|> parseString
-    <|> parseNumber
-    <|> parseBool
+    <|> try parseNumber
+    <|> try parseBool
+    <|> try parseCharacter
