@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Monad (liftM)
+import Data.Array
 import Data.Complex
 import Data.Ratio
 import Numeric
@@ -11,6 +12,7 @@ data LispVal
   = Atom String
   | List [LispVal]
   | DottedList [LispVal] LispVal
+  | Vector (Array Int LispVal)
   | Number Integer
   | Float Double
   | Rational Rational
@@ -189,6 +191,11 @@ parseUnquoteSplicing = do
   x <- parseExpr
   return $ List [Atom "unquote-splicing", x]
 
+parseVector :: Parser LispVal
+parseVector = do
+  values <- sepBy parseExpr spaces
+  return $ Vector $ listArray (0, length values - 1) values
+
 -- TODO(emi): group the numerical stuff into a separate function so it doesnt clog this one so much
 parseExpr :: Parser LispVal
 parseExpr =
@@ -207,5 +214,11 @@ parseExpr =
     <|> do
       char '('
       x <- try parseList <|> parseDottedList
+      char ')'
+      return x
+    <|> do
+      char '#'
+      char '('
+      x <- try parseVector
       char ')'
       return x
