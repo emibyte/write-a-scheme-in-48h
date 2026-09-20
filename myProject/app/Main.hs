@@ -158,6 +158,17 @@ toDouble :: LispVal -> Double
 toDouble (Float f) = f
 toDouble (Number n) = fromIntegral n
 
+
+parseAnyList :: Parser LispVal
+parseAnyList = do
+  char '('
+  first <- sepEndBy parseExpr spaces
+  maybeSecond <- optionMaybe (char '.' >> spaces >> parseExpr)
+  char ')'
+  return $ case maybeSecond of
+    Just second -> DottedList first second
+    Nothing -> List first
+
 parseList :: Parser LispVal
 parseList = liftM List $ sepBy parseExpr spaces
 
@@ -211,11 +222,7 @@ parseExpr =
     <|> parseUnquoteSplicing
     <|> parseUnquote
     <|> parseQuoted
-    <|> do
-      char '('
-      x <- try parseList <|> parseDottedList
-      char ')'
-      return x
+    <|> parseAnyList
     <|> do
       char '#'
       char '('
