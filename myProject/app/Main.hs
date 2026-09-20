@@ -157,7 +157,6 @@ toDouble :: LispVal -> Double
 toDouble (Float f) = f
 toDouble (Number n) = fromIntegral n
 
-
 parseAnyList :: Parser LispVal
 parseAnyList = do
   char '('
@@ -254,4 +253,31 @@ eval val@(Float _) = val
 eval val@(Rational _) = val
 eval val@(Complex _) = val
 eval (List [Atom "quote", val]) = val -- NOTE(emi): quote -> dont eval
+eval (List (Atom func : args)) = apply func $ map eval args
 
+apply :: String -> [LispVal] -> LispVal
+apply func args = maybe (Bool False) ($ args) $ lookup func primitives
+
+primitives :: [(String, [LispVal] -> LispVal)]
+primitives =
+  [ ("+", numericBinop (+)),
+    ("-", numericBinop (-)),
+    ("*", numericBinop (*)),
+    ("/", numericBinop div),
+    ("mod", numericBinop mod),
+    ("quotient", numericBinop quot),
+    ("remainder", numericBinop rem)
+  ]
+
+numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
+numericBinop op params = Number $ foldl1 op $ map unpackNum params
+
+unpackNum :: LispVal -> Integer
+unpackNum (Number n) = n
+unpackNum (String s) =
+  let parsed = reads s :: [(Integer, String)]
+   in if null parsed
+        then 0
+        else fst $ parsed !! 0
+unpackNum (List [n]) = unpackNum n
+unpackNum _ = 0
