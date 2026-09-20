@@ -20,7 +20,6 @@ data LispVal
   | String String
   | Character Char
   | Bool Bool
-  deriving (Show)
 
 main :: IO ()
 main = do
@@ -36,7 +35,7 @@ spaces = skipMany1 space
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
   Left err -> "No match: " ++ show err
-  Right val -> "Found value: " ++ show val
+  Right val -> "Found " ++ show val
 
 escapedChars :: Parser Char
 escapedChars = do
@@ -229,3 +228,22 @@ parseExpr =
       x <- try parseVector
       char ')'
       return x
+
+-- Evaluation Part 1 Chapter:
+showVal :: LispVal -> String
+showVal (String contents) = "\"" ++ contents ++ "\""
+showVal (Atom name) = name
+showVal (Number contents) = show contents
+showVal (Float contents) = show contents
+showVal (Rational contents) = show contents
+showVal (Complex contents) = show contents
+showVal (Bool True) = "#t"
+showVal (Bool False) = "#f"
+showVal (List contents) = "(" ++ unwordsList contents ++ ")"
+showVal (DottedList head tail) = "(" ++ unwordsList head ++ showVal tail ++ ")"
+
+unwordsList :: [LispVal] -> String
+unwordsList = unwords . map showVal
+
+instance Show LispVal where show = showVal
+
