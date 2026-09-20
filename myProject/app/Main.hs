@@ -266,11 +266,74 @@ primitives =
     ("/", numericBinop div),
     ("mod", numericBinop mod),
     ("quotient", numericBinop quot),
-    ("remainder", numericBinop rem)
+    ("remainder", numericBinop rem),
+    ("string?", unaryOp stringp),
+    ("symbol?", unaryOp symbolp),
+    ("number?", unaryOp numberp),
+    ("complex?", unaryOp complexp),
+    ("real?", unaryOp realp),
+    ("rational?", unaryOp rationalp),
+    ("integer?", unaryOp integerp),
+    -- ("exact?", _),     -- TODO(emi): havent implemented exactness
+    -- ("inexact?", _),   -- TODO(emi): havent implemented exactness
+    ("boolean?", unaryOp booleanp),
+    -- ("pair?", _),      -- TODO(emi): havent implemented pairs(?)
+    ("list?", unaryOp listp),
+    -- ("procedure?", _), -- TODO(emi): we do not have procedures yet
+    ("vector?", unaryOp vectorp)
   ]
 
 numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
 numericBinop op params = Number $ foldl1 op $ map unpackNum params
+
+-- NOTE(emi): kinda whacky but since we defined primitives with [LispVal] -> LispVal we kinda have to do it like this
+unaryOp :: (LispVal -> LispVal) -> [LispVal] -> LispVal
+unaryOp op [param] = op param
+unaryOp op (param : _) = op param
+
+stringp :: LispVal -> LispVal
+stringp (String _) = Bool True
+stringp _ = Bool False
+
+symbolp :: LispVal -> LispVal
+symbolp (Atom _) = Bool True
+symbolp _ = Bool False
+
+booleanp :: LispVal -> LispVal
+booleanp (Bool _) = Bool True
+booleanp _ = Bool False
+
+vectorp :: LispVal -> LispVal
+vectorp (Vector _) = Bool True
+vectorp _ = Bool False
+
+listp :: LispVal -> LispVal
+listp (List _) = Bool True
+listp (DottedList _ _) = Bool True
+listp _ = Bool False
+
+numberp :: LispVal -> LispVal
+numberp (Number _) = Bool True
+numberp (Complex _) = Bool True
+numberp (Float _) = Bool True
+numberp (Rational _) = Bool True
+numberp _ = Bool False
+
+complexp :: LispVal -> LispVal
+complexp (Complex _) = Bool True
+complexp _ = Bool False
+
+realp :: LispVal -> LispVal
+realp (Float _) = Bool True
+realp _ = Bool False
+
+rationalp :: LispVal -> LispVal
+rationalp (Rational _) = Bool True
+rationalp _ = Bool False
+
+integerp :: LispVal -> LispVal
+integerp (Number _) = Bool True
+integerp _ = Bool False
 
 unpackNum :: LispVal -> Integer
 unpackNum (Number n) = n
