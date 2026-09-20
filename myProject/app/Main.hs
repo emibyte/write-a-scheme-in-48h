@@ -24,7 +24,7 @@ data LispVal
 main :: IO ()
 main = do
   (expr : _) <- getArgs
-  putStrLn (readExpr expr)
+  (print . eval . readExpr) expr
 
 symbol :: Parser Char
 symbol = oneOf "!$%&|*+-/:<=>?@^_~"
@@ -32,10 +32,10 @@ symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 spaces :: Parser ()
 spaces = skipMany1 space
 
-readExpr :: String -> String
+readExpr :: String -> LispVal
 readExpr input = case parse parseExpr "lisp" input of
-  Left err -> "No match: " ++ show err
-  Right val -> "Found " ++ show val
+  Left err -> String $ "No match: " ++ show err
+  Right val -> val
 
 escapedChars :: Parser Char
 escapedChars = do
@@ -246,4 +246,12 @@ unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
 
 instance Show LispVal where show = showVal
+
+eval :: LispVal -> LispVal
+eval val@(String _) = val
+eval val@(Number _) = val
+eval val@(Float _) = val
+eval val@(Rational _) = val
+eval val@(Complex _) = val
+eval (List [Atom "quote", val]) = val -- NOTE(emi): quote -> dont eval
 
