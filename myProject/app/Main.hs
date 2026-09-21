@@ -343,10 +343,11 @@ pairp _ = Bool False
 
 unpackNum :: LispVal -> Integer
 unpackNum (Number n) = n
-unpackNum (String s) =
-  let parsed = reads s :: [(Integer, String)]
-   in if null parsed
-        then 0
-        else fst $ parsed !! 0
-unpackNum (List [n]) = unpackNum n
 unpackNum _ = 0
+-- unpackNum (String s) =
+--   let parsed = reads s :: [(Integer, String)]
+--    in if null parsed
+--         then 0
+--         else fst $ parsed !! 0
+-- unpackNum (List [n]) = unpackNum n
+-- unpackNum _ = 0
