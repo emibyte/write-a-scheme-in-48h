@@ -277,7 +277,7 @@ primitives =
     -- ("exact?", _),     -- TODO(emi): havent implemented exactness
     -- ("inexact?", _),   -- TODO(emi): havent implemented exactness
     ("boolean?", unaryOp booleanp),
-    -- ("pair?", _),      -- TODO(emi): havent implemented pairs(?)
+    ("pair?", unaryOp pairp), -- TODO(emi): is this correct? i think so tbh, but its also still kinda buggy mmh
     ("list?", unaryOp listp),
     -- ("procedure?", _), -- TODO(emi): we do not have procedures yet
     ("vector?", unaryOp vectorp)
@@ -334,6 +334,12 @@ rationalp _ = Bool False
 integerp :: LispVal -> LispVal
 integerp (Number _) = Bool True
 integerp _ = Bool False
+
+pairp :: LispVal -> LispVal
+pairp (List (_ : _)) = Bool True
+pairp (List []) = Bool False
+pairp (DottedList _ _) = Bool True
+pairp _ = Bool False
 
 unpackNum :: LispVal -> Integer
 unpackNum (Number n) = n
