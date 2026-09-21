@@ -280,7 +280,9 @@ primitives =
     ("pair?", unaryOp pairp), -- TODO(emi): is this correct? i think so tbh, but its also still kinda buggy mmh
     ("list?", unaryOp listp),
     -- ("procedure?", _), -- TODO(emi): we do not have procedures yet
-    ("vector?", unaryOp vectorp)
+    ("vector?", unaryOp vectorp),
+    ("string->symbol", unaryOp stringToSymbol),
+    ("symbol->string", unaryOp symbolToString)
   ]
 
 numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
@@ -351,3 +353,12 @@ unpackNum _ = 0
 --         else fst $ parsed !! 0
 -- unpackNum (List [n]) = unpackNum n
 -- unpackNum _ = 0
+
+-- TODO(emi): what do when non good input?
+symbolToString :: LispVal -> LispVal
+symbolToString (Atom name) = String name
+symbolToString _ = String ""
+
+stringToSymbol :: LispVal -> LispVal
+stringToSymbol (String s) = Atom s
+stringToSymbol _ = Atom ""
