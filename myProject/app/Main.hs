@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Monad (liftM)
+import Control.Monad.Except
 import Data.Array
 import Data.Complex
 import Data.Ratio
@@ -346,6 +347,7 @@ pairp _ = Bool False
 unpackNum :: LispVal -> Integer
 unpackNum (Number n) = n
 unpackNum _ = 0
+
 -- unpackNum (String s) =
 --   let parsed = reads s :: [(Integer, String)]
 --    in if null parsed
@@ -362,3 +364,31 @@ symbolToString _ = String ""
 stringToSymbol :: LispVal -> LispVal
 stringToSymbol (String s) = Atom s
 stringToSymbol _ = Atom ""
+
+-- Error Checking and Exceptions Chapter:
+data LispError
+  = NumArgs Integer [LispVal]
+  | TypeMismatch String LispVal
+  | Parser ParseError
+  | BadSpecialForm String LispVal
+  | NotFunction String String
+  | UnboundVar String String
+  | Default String
+
+showError :: LispError -> String
+showError (UnboundVar message var) = message ++ ": " ++ var
+showError (BadSpecialForm message form) = message ++ ": " ++ show form
+showError (NotFunction message func) = message ++ ": " ++ func
+showError (NumArgs expected found) = "Expected " ++ show expected ++ " args; found values " ++ unwordsList found
+showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected ++ " found: " ++ show found
+showError (Parser parseError) = "Parse error at " ++ show parseError
+
+instance Show LispError where show = showError
+
+-- NOTE(emi): this is partially applied ThrowsError still takes one more type (which will the be right type)
+type ThrowsError = Either LispError
+
+trapError action = catchError action (return . show)
+
+extractValue :: ThrowsError a -> a
+extractValue (Right val) = val
