@@ -15,6 +15,7 @@
       pkgs = nixpkgs.legacyPackages.${system};
       ghc = pkgs.haskellPackages.ghcWithPackages (hp: [
         hp.parsec
+        hp.mtl_2_3_2
       ]);
     in {
       formatter = pkgs.alejandra;
