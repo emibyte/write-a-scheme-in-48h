@@ -254,13 +254,16 @@ eval val@(Number _) = return val
 eval val@(Float _) = return val
 eval val@(Rational _) = return val
 eval val@(Complex _) = return val
+eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val -- NOTE(emi): quote -> dont eval
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
-apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func)
-                  ($ args)
-                  (lookup func primitives)
+apply func args =
+  maybe
+    (throwError $ NotFunction "Unrecognized primitive function args" func)
+    ($ args)
+    (lookup func primitives)
 
 primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives =
@@ -286,9 +289,23 @@ primitives =
     -- ("procedure?", _), -- TODO(emi): we do not have procedures yet
     ("vector?", unaryOp vectorp),
     ("string->symbol", unaryOp stringToSymbol),
-    ("symbol->string", unaryOp symbolToString)
+    ("symbol->string", unaryOp symbolToString),
+    ("=", numBoolBinop (==)),
+    ("<", numBoolBinop (<)),
+    (">", numBoolBinop (>)),
+    ("/=", numBoolBinop (/=)),
+    (">=", numBoolBinop (>=)),
+    ("<=", numBoolBinop (<=)),
+    ("&&", boolBoolBinop (&&)),
+    ("||", boolBoolBinop (||)),
+    ("string=?", strBoolBinop (==)),
+    ("string<?", strBoolBinop (<)),
+    ("string>?", strBoolBinop (>)),
+    ("string<=?", strBoolBinop (<=)),
+    ("string>=?", strBoolBinop (>=))
   ]
 
+-- TODO(emi): this needs to work on the whole num stack!!! not just integers
 numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> ThrowsError LispVal
 -- numericBinop op params = Number $ foldl1 op $ map unpackNum params
 numericBinop op [] = throwError $ NumArgs 2 []
@@ -300,6 +317,22 @@ unaryOp :: (LispVal -> LispVal) -> [LispVal] -> ThrowsError LispVal
 unaryOp op [param] = return $ op param
 unaryOp op (param : _) = return $ op param
 unaryOp op [] = throwError $ NumArgs 1 []
+
+-- TODO(emi): probably pattern match on params instead of the if then else
+boolBinop :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] -> ThrowsError LispVal
+boolBinop unpacker op params =
+  if length params /= 2
+    then throwError $ NumArgs 2 params
+    else do
+      left <- unpacker $ params !! 0
+      right <- unpacker $ params !! 1
+      return $ Bool $ left `op` right
+
+numBoolBinop = boolBinop unpackNum
+
+boolBoolBinop = boolBinop unpackBool
+
+strBoolBinop = boolBinop unpackString
 
 stringp :: LispVal -> LispVal
 stringp (String _) = Bool True
@@ -355,6 +388,16 @@ unpackNum :: LispVal -> ThrowsError Integer
 unpackNum (Number n) = return n
 unpackNum notNum = throwError $ TypeMismatch "number" notNum
 
+unpackBool :: LispVal -> ThrowsError Bool
+unpackBool (Bool b) = return b
+unpackBool notBool = throwError $ TypeMismatch "boolean" notBool
+
+unpackString :: LispVal -> ThrowsError String
+unpackString (String s) = return s
+unpackString (Number n) = return $ show n
+unpackString (Bool b) = return $ show b
+unpackString notString = throwError $ TypeMismatch "string" notString
+
 -- unpackNum (String s) =
 --   let parsed = reads s :: [(Integer, String)]
 --    in if null parsed
@@ -400,5 +443,3 @@ trapError action = catchError action (return . show)
 -- NOTE(emi): `purposefully` undefined for Left since we only wanna call it on rights
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
-
-
