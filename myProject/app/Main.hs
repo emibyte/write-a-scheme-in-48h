@@ -256,6 +256,12 @@ eval val@(Rational _) = return val
 eval val@(Complex _) = return val
 eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val -- NOTE(emi): quote -> dont eval
+eval (List [Atom "if", pred, conseq, alt]) =
+  do
+    result <- eval pred
+    case result of
+      Bool False -> eval alt
+      otherwise -> eval conseq
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
