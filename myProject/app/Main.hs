@@ -52,14 +52,14 @@ escapedChars = do
 
 parseString :: Parser LispVal
 parseString = do
-  char '"'
+  _ <- char '"'
   x <- many $ escapedChars <|> noneOf "\"\\"
-  char '"'
+  _ <- char '"'
   return $ String x
 
 parseBool :: Parser LispVal
 parseBool = do
-  char '#'
+  _ <- char '#'
   (char 't' >> return (Bool True)) <|> (char 'f' >> return (Bool False))
 
 parseAtom :: Parser LispVal
@@ -85,7 +85,7 @@ parseDecimalWithTag = try $ char '#' >> char 'd' >> parseDecimal
 
 parseBinary :: Parser LispVal
 parseBinary = do
-  try $ string "#b"
+  _ <- try $ string "#b"
   x <- many1 $ oneOf "10"
   return $ Number (bin2dig x)
 
@@ -96,7 +96,7 @@ bin2dig =
 
 parseOctal :: Parser LispVal
 parseOctal = do
-  try $ string "#o"
+  _ <- try $ string "#o"
   x <- many1 octDigit
   return $ Number (oct2dig x)
 
@@ -105,7 +105,7 @@ oct2dig x = fst (readOct x !! 0)
 
 parseHexadecimal :: Parser LispVal
 parseHexadecimal = do
-  try $ string "#x"
+  _ <- try $ string "#x"
   x <- many1 hexDigit
   return $ Number (hex2dig x)
 
@@ -114,7 +114,7 @@ hex2dig x = fst (readHex x !! 0)
 
 parseCharacter :: Parser LispVal
 parseCharacter = do
-  try $ string "#\\"
+  _ <- try $ string "#\\"
   value <- try (string "newline" <|> string "space") <|> do x <- anyChar; notFollowedBy alphaNum; return [x]
   return $ case value of
     "space" -> Character ' '
@@ -128,77 +128,82 @@ parseNumber' = do
   (return . Number . read) digits
 
 -- exercise 1.2
-parseNumber'' :: Parser LispVal
-parseNumber'' = many1 digit >>= return . Number . read
+_parseNumber'' :: Parser LispVal
+_parseNumber'' = many1 digit >>= return . Number . read
 
 -- TODO(emi): #e and #i for exactness
 parseFloat :: Parser LispVal
 parseFloat = do
   first <- many1 digit
-  char '.'
+  _ <- char '.'
   after <- many1 digit
   let (parsed, _) = (readFloat $ first ++ "." ++ after) !! 0
   return $ Float parsed
 
 parseRational :: Parser LispVal
 parseRational = do
-  numerator <- many1 digit
-  char '/'
-  denominator <- many1 digit
-  return $ Rational $ (read numerator) % (read denominator)
+  numeratorDigits <- many1 digit
+  _ <- char '/'
+  denominatorDigits <- many1 digit
+  return $ Rational $ (read numeratorDigits) % (read denominatorDigits)
 
 parseComplex :: Parser LispVal
 parseComplex = do
   real <- (try parseFloat <|> parseDecimal)
-  char '+'
+  _ <- char '+'
   imaginary <- (try parseFloat <|> parseDecimal)
-  char 'i'
-  return $ Complex (toDouble real :+ toDouble imaginary)
+  _ <- char 'i'
+  case (toDouble real, toDouble imaginary) of
+    (Just x, Just y) -> return $ Complex (x :+ y)
+    -- NOTE(emi): this cant actually happen so i guess this is fine for now?
+    _ -> fail "parseComplex: expected numeric real/imaginary parts" 
 
-toDouble :: LispVal -> Double
-toDouble (Float f) = f
-toDouble (Number n) = fromIntegral n
+-- TODO(emi): there should be a better way of doing this?
+toDouble :: LispVal -> Maybe Double
+toDouble (Float f) = Just f
+toDouble (Number n) = Just $ fromIntegral n
+toDouble _ = Nothing
 
 parseAnyList :: Parser LispVal
 parseAnyList = do
-  char '('
+  _ <- char '('
   first <- sepEndBy parseExpr spaces
   maybeSecond <- optionMaybe (char '.' >> spaces >> parseExpr)
-  char ')'
+  _ <- char ')'
   return $ case maybeSecond of
     Just second -> DottedList first second
     Nothing -> List first
 
-parseList :: Parser LispVal
-parseList = liftM List $ sepBy parseExpr spaces
+_parseList :: Parser LispVal
+_parseList = liftM List $ sepBy parseExpr spaces
 
-parseDottedList :: Parser LispVal
-parseDottedList = do
-  head <- endBy parseExpr spaces
-  tail <- char '.' >> spaces >> parseExpr
-  return $ DottedList head tail
+_parseDottedList :: Parser LispVal
+_parseDottedList = do
+  headList <- endBy parseExpr spaces
+  tailList <- char '.' >> spaces >> parseExpr
+  return $ DottedList headList tailList
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
-  char '\''
+  _ <- char '\''
   x <- parseExpr
   return $ List [Atom "quote", x]
 
 parseQuasiquoted :: Parser LispVal
 parseQuasiquoted = do
-  char '`'
+  _ <- char '`'
   x <- parseExpr
   return $ List [Atom "quasiquote", x]
 
 parseUnquote :: Parser LispVal
 parseUnquote = do
-  char ','
+  _ <- char ','
   x <- parseExpr
   return $ List [Atom "unquote", x]
 
 parseUnquoteSplicing :: Parser LispVal
 parseUnquoteSplicing = do
-  string ",@"
+  _ <- string ",@"
   x <- parseExpr
   return $ List [Atom "unquote-splicing", x]
 
@@ -224,10 +229,10 @@ parseExpr =
     <|> parseQuoted
     <|> parseAnyList
     <|> do
-      char '#'
-      char '('
+      _ <- char '#'
+      _ <- char '('
       x <- try parseVector
-      char ')'
+      _ <- char ')'
       return x
 
 -- Evaluation Part 1 Chapter:
@@ -240,8 +245,10 @@ showVal (Rational contents) = show contents
 showVal (Complex contents) = show contents
 showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"
+showVal (Character content) = show content
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
-showVal (DottedList head tail) = "(" ++ unwordsList head ++ showVal tail ++ ")"
+showVal (DottedList head_ tail_) = "(" ++ unwordsList head_ ++ showVal tail_ ++ ")"
+showVal (Vector arr) = show arr
 
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
@@ -256,13 +263,16 @@ eval val@(Rational _) = return val
 eval val@(Complex _) = return val
 eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val -- NOTE(emi): quote -> dont eval
-eval (List [Atom "if", pred, conseq, alt]) =
+eval (List [Atom "if", pred_, conseq, alt]) =
   do
-    result <- eval pred
+    result <- eval pred_
     case result of
       Bool False -> eval alt
-      otherwise -> eval conseq
+      _ -> eval conseq
 eval (List (Atom func : args)) = mapM eval args >>= apply func
+
+-- TODO(emi): not sure how to eval normal lists of things?? i guess we dont actually do that?
+-- eval (List l) = return mapM eval l
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args =
@@ -314,15 +324,15 @@ primitives =
 -- TODO(emi): this needs to work on the whole num stack!!! not just integers
 numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> ThrowsError LispVal
 -- numericBinop op params = Number $ foldl1 op $ map unpackNum params
-numericBinop op [] = throwError $ NumArgs 2 []
-numericBinop op singleVal@[_] = throwError $ NumArgs 2 singleVal
+numericBinop _ [] = throwError $ NumArgs 2 []
+numericBinop _ singleVal@[_] = throwError $ NumArgs 2 singleVal
 numericBinop op params = mapM unpackNum params >>= return . Number . foldl1 op
 
 -- NOTE(emi): kinda whacky but since we defined primitives with [LispVal] -> LispVal we kinda have to do it like this
 unaryOp :: (LispVal -> LispVal) -> [LispVal] -> ThrowsError LispVal
 unaryOp op [param] = return $ op param
 unaryOp op (param : _) = return $ op param
-unaryOp op [] = throwError $ NumArgs 1 []
+unaryOp _ [] = throwError $ NumArgs 1 []
 
 -- TODO(emi): probably pattern match on params instead of the if then else
 boolBinop :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] -> ThrowsError LispVal
@@ -334,10 +344,13 @@ boolBinop unpacker op params =
       right <- unpacker $ params !! 1
       return $ Bool $ left `op` right
 
+numBoolBinop :: (Integer -> Integer -> Bool) -> [LispVal] -> ThrowsError LispVal
 numBoolBinop = boolBinop unpackNum
 
+boolBoolBinop :: (Bool -> Bool -> Bool) -> [LispVal] -> ThrowsError LispVal
 boolBoolBinop = boolBinop unpackBool
 
+strBoolBinop :: (String -> String -> Bool) -> [LispVal] -> ThrowsError LispVal
 strBoolBinop = boolBinop unpackString
 
 stringp :: LispVal -> LispVal
@@ -390,6 +403,7 @@ pairp (List []) = Bool False
 pairp (DottedList _ _) = Bool True
 pairp _ = Bool False
 
+-- TODO(emi): this needs to unpack all number types in the future!
 unpackNum :: LispVal -> ThrowsError Integer
 unpackNum (Number n) = return n
 unpackNum notNum = throwError $ TypeMismatch "number" notNum
@@ -420,6 +434,42 @@ symbolToString _ = String ""
 stringToSymbol :: LispVal -> LispVal
 stringToSymbol (String s) = Atom s
 stringToSymbol _ = Atom ""
+
+-- List Primitives
+car :: [LispVal] -> ThrowsError LispVal
+car [List (x : _)] = return x
+car [DottedList (x : _) _] = return x
+car [badArg] = throwError $ TypeMismatch "pair" badArg
+car badArgList = throwError $ NumArgs 1 badArgList
+
+cdr :: [LispVal] -> ThrowsError LispVal
+cdr [List (x : xs)] = return $ List xs
+cdr [DottedList [_] x] = return x
+cdr [DottedList (_ : xs) x] = return $ DottedList xs x
+cdr [badArg] = throwError $ TypeMismatch "pair" badArg
+cdr badArgList = throwError $ NumArgs 1 badArgList
+
+cons :: [LispVal] -> ThrowsError LispVal
+cons [x1, List []] = return $ List [x1]
+cons [x, List xs] = return $ List $ x : xs
+cons [x, DottedList xs xlast] = return $ DottedList (x : xs) xlast
+cons [x1, x2] = return $ DottedList [x1] x2
+cons badArgList = throwError $ NumArgs 2 badArgList
+
+-- TODO(emi): the full number stack is missing again (bcs im not sure how to do that yet aaaaa)
+eqv :: [LispVal] -> ThrowsError LispVal
+eqv [(Bool arg1), (Bool arg2)] = return $ Bool $ arg1 == arg2
+eqv [(Number arg1), (Number arg2)] = return $ Bool $ arg1 == arg2
+eqv [(String arg1), (String arg2)] = return $ Bool $ arg1 == arg2
+eqv [(Atom arg1), (Atom arg2)] = return $ Bool $ arg1 == arg2
+eqv [(DottedList xs x), (DottedList ys y)] = eqv [List $ xs ++ [x], List $ ys ++ [y]]
+eqv [(List xs), (List ys)] = return $ Bool $ (length xs == length ys) && (all eqvPair $ zip xs ys)
+  where
+    eqvPair (x, y) = case eqv [x, y] of
+      Left err -> False
+      Right (Bool val) -> val
+eqv [_, _] = return $ Bool False
+eqv badArgList = throwError $ NumArgs 2 badArgList
 
 -- Error Checking and Exceptions Chapter:
 data LispError
