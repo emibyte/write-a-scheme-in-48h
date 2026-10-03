@@ -429,6 +429,7 @@ unpackString (Number n) = return $ show n
 unpackString (Bool b) = return $ show b
 unpackString notString = throwError $ TypeMismatch "string" notString
 
+-- NOTE(emi): cool language extension thingy allows this
 data Unpacker = forall a. (Eq a) => AnyUnpacker (LispVal -> ThrowsError a)
 
 unpackEquals :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
