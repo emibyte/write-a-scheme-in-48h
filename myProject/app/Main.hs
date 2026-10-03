@@ -1,3 +1,5 @@
+{-# LANGUAGE ExistentialQuantification #-}
+
 module Main (main) where
 
 import Control.Monad (liftM)
@@ -49,6 +51,7 @@ escapedChars = do
     'n' -> '\n'
     'r' -> '\r'
     't' -> '\t'
+    _ -> x -- NOTE(emi): unreachable given oneOf
 
 parseString :: Parser LispVal
 parseString = do
@@ -156,7 +159,7 @@ parseComplex = do
   case (toDouble real, toDouble imaginary) of
     (Just x, Just y) -> return $ Complex (x :+ y)
     -- NOTE(emi): this cant actually happen so i guess this is fine for now?
-    _ -> fail "parseComplex: expected numeric real/imaginary parts" 
+    _ -> fail "parseComplex: expected numeric real/imaginary parts"
 
 -- TODO(emi): there should be a better way of doing this?
 toDouble :: LispVal -> Maybe Double
@@ -247,7 +250,7 @@ showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"
 showVal (Character content) = show content
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
-showVal (DottedList head_ tail_) = "(" ++ unwordsList head_ ++ showVal tail_ ++ ")"
+showVal (DottedList head_ tail_) = "(" ++ unwordsList head_ ++ " . " ++ showVal tail_ ++ ")"
 showVal (Vector arr) = show arr
 
 unwordsList :: [LispVal] -> String
@@ -270,6 +273,7 @@ eval (List [Atom "if", pred_, conseq, alt]) =
       Bool False -> eval alt
       _ -> eval conseq
 eval (List (Atom func : args)) = mapM eval args >>= apply func
+eval _ = Left $ Default "not implemented yet"
 
 -- TODO(emi): not sure how to eval normal lists of things?? i guess we dont actually do that?
 -- eval (List l) = return mapM eval l
@@ -318,7 +322,13 @@ primitives =
     ("string<?", strBoolBinop (<)),
     ("string>?", strBoolBinop (>)),
     ("string<=?", strBoolBinop (<=)),
-    ("string>=?", strBoolBinop (>=))
+    ("string>=?", strBoolBinop (>=)),
+    ("car", car),
+    ("cdr", cdr),
+    ("cons", cons),
+    ("eq?", eqv),
+    ("eqv?", eqv),
+    ("equal?", equal)
   ]
 
 -- TODO(emi): this needs to work on the whole num stack!!! not just integers
@@ -418,6 +428,17 @@ unpackString (Number n) = return $ show n
 unpackString (Bool b) = return $ show b
 unpackString notString = throwError $ TypeMismatch "string" notString
 
+data Unpacker = forall a. (Eq a) => AnyUnpacker (LispVal -> ThrowsError a)
+
+unpackEquals :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
+unpackEquals arg1 arg2 (AnyUnpacker unpacker) =
+  ( do
+      unpacked1 <- unpacker arg1
+      unpacked2 <- unpacker arg2
+      return $ unpacked1 == unpacked2
+  )
+    `catchError` (const $ return False)
+
 -- unpackNum (String s) =
 --   let parsed = reads s :: [(Integer, String)]
 --    in if null parsed
@@ -443,7 +464,7 @@ car [badArg] = throwError $ TypeMismatch "pair" badArg
 car badArgList = throwError $ NumArgs 1 badArgList
 
 cdr :: [LispVal] -> ThrowsError LispVal
-cdr [List (x : xs)] = return $ List xs
+cdr [List (_ : xs)] = return $ List xs
 cdr [DottedList [_] x] = return x
 cdr [DottedList (_ : xs) x] = return $ DottedList xs x
 cdr [badArg] = throwError $ TypeMismatch "pair" badArg
@@ -466,10 +487,18 @@ eqv [(DottedList xs x), (DottedList ys y)] = eqv [List $ xs ++ [x], List $ ys ++
 eqv [(List xs), (List ys)] = return $ Bool $ (length xs == length ys) && (all eqvPair $ zip xs ys)
   where
     eqvPair (x, y) = case eqv [x, y] of
-      Left err -> False
+      Left _ -> False
       Right (Bool val) -> val
 eqv [_, _] = return $ Bool False
 eqv badArgList = throwError $ NumArgs 2 badArgList
+
+equal :: [LispVal] -> ThrowsError LispVal
+equal [arg1, arg2] = do
+  primitiveEquals <- liftM or $ mapM (unpackEquals arg1 arg2)
+                     [AnyUnpacker unpackNum, AnyUnpacker unpackString, AnyUnpacker unpackBool]
+  eqvEquals <- eqv [arg1, arg2]
+  return $ Bool $ (primitiveEquals || let (Bool x) = eqvEquals in x)
+equal badArgList = throwError $ NumArgs 2 badArgList
 
 -- Error Checking and Exceptions Chapter:
 data LispError
@@ -488,14 +517,17 @@ showError (NotFunction message func) = message ++ ": " ++ func
 showError (NumArgs expected found) = "Expected " ++ show expected ++ " args; found values: " ++ unwordsList found
 showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected ++ " found: " ++ show found
 showError (Parser parseError) = "Parse error at " ++ show parseError
+showError (Default message) = "Error: " ++ message
 
 instance Show LispError where show = showError
 
 -- NOTE(emi): this is partially applied ThrowsError still takes one more type (which will the be right type)
 type ThrowsError = Either LispError
 
+trapError :: (MonadError e m, Show e) => m String -> m String
 trapError action = catchError action (return . show)
 
 -- NOTE(emi): `purposefully` undefined for Left since we only wanna call it on rights
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
+extractValue (Left err) = error $ "extractValue: called on Left: " ++ show err
