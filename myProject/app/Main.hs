@@ -270,8 +270,9 @@ eval (List [Atom "if", pred_, conseq, alt]) =
   do
     result <- eval pred_
     case result of
+      Bool True -> eval conseq
       Bool False -> eval alt
-      _ -> eval conseq
+      notBool -> throwError $ TypeMismatch "boolean" notBool
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval _ = Left $ Default "not implemented yet"
 
