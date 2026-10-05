@@ -486,21 +486,35 @@ eqv [(Number arg1), (Number arg2)] = return $ Bool $ arg1 == arg2
 eqv [(String arg1), (String arg2)] = return $ Bool $ arg1 == arg2
 eqv [(Atom arg1), (Atom arg2)] = return $ Bool $ arg1 == arg2
 eqv [(DottedList xs x), (DottedList ys y)] = eqv [List $ xs ++ [x], List $ ys ++ [y]]
-eqv [(List xs), (List ys)] = return $ Bool $ (length xs == length ys) && (all eqvPair $ zip xs ys)
-  where
-    eqvPair (x, y) = case eqv [x, y] of
-      Left _ -> False
-      Right (Bool val) -> val
+eqv listPair@[List _, List _] = eqvList eqv listPair
 eqv [_, _] = return $ Bool False
 eqv badArgList = throwError $ NumArgs 2 badArgList
 
 equal :: [LispVal] -> ThrowsError LispVal
+equal listPair@[List _, List _] = eqvList equal listPair
+equal [(DottedList xs x), (DottedList ys y)] = equal [List $ xs ++ [x], List $ ys ++ [y]]
 equal [arg1, arg2] = do
-  primitiveEquals <- liftM or $ mapM (unpackEquals arg1 arg2)
-                     [AnyUnpacker unpackNum, AnyUnpacker unpackString, AnyUnpacker unpackBool]
+  -- TODO(emi): the problem is that for a list it finds no unpacker and then just does eqv but we dont want that
+  primitiveEquals <-
+    liftM or $
+      mapM
+        (unpackEquals arg1 arg2)
+        [AnyUnpacker unpackNum, AnyUnpacker unpackString, AnyUnpacker unpackBool]
   eqvEquals <- eqv [arg1, arg2]
   return $ Bool $ (primitiveEquals || let (Bool x) = eqvEquals in x)
 equal badArgList = throwError $ NumArgs 2 badArgList
+
+eqvList :: ([LispVal] -> ThrowsError LispVal) -> [LispVal] -> ThrowsError LispVal
+eqvList equalFunc [(List xs), (List ys)] = return $ Bool $ (length xs == length ys) && (all eqvPair $ zip xs ys)
+  where
+    eqvPair (x, y) = case equalFunc [x, y] of
+      Left _ -> False
+      Right (Bool val) -> val
+      _ -> False
+eqvList _ [] = throwError $ NumArgs 2 []
+eqvList _ singleItemList@[_] = throwError $ NumArgs 2 singleItemList
+eqvList _ [arg1 , _] = throwError $ TypeMismatch "list" arg1
+eqvList _ badArgsList = throwError $ NumArgs 2 badArgsList
 
 -- Error Checking and Exceptions Chapter:
 data LispError
