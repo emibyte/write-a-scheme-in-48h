@@ -6,6 +6,7 @@ import Control.Monad (liftM)
 import Control.Monad.Except
 import Data.Array
 import Data.Complex
+import Data.List (unsnoc)
 import Data.Ratio
 import Numeric
 import System.Environment
@@ -273,11 +274,31 @@ eval (List [Atom "if", pred_, conseq, alt]) =
       Bool True -> eval conseq
       Bool False -> eval alt
       notBool -> throwError $ TypeMismatch "boolean" notBool
+-- (cond ((> 3 2) 'greater)
+--       ((< 3 2) 'lesser)
+--       (else 'equal))
+eval (List ((Atom "cond") : cases)) = evalCond cases
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval _ = Left $ Default "not implemented yet"
 
--- TODO(emi): not sure how to eval normal lists of things?? i guess we dont actually do that?
--- eval (List l) = return mapM eval l
+-- NOTE(emi): according to R5RS spec (:nerd_emoji:) we kinda have to consider here that val can be a
+--            list of values in which case what should actually be returned from a case is the last value in
+--            that list.
+evalCond :: [LispVal] -> ThrowsError LispVal
+evalCond [] = throwError $ BadSpecialForm "no clause matched" (List [])
+evalCond (List (Atom "else" : conseqs) : []) = mapM eval conseqs >>= getConseqVal (Atom "else")
+evalCond (List (Atom "else" : _) : _) = throwError $ UnboundVar "unbound variable" "else"
+evalCond (List (cond : conseqs) : xs) = do
+  evaledCond <- eval cond
+  case evaledCond of
+    Bool True -> mapM eval conseqs >>= getConseqVal cond
+    _ -> evalCond xs
+evalCond (badStuff : _) = throwError $ BadSpecialForm "malformed clause in cond" badStuff
+
+getConseqVal :: LispVal -> [LispVal] -> ThrowsError LispVal
+getConseqVal cond xs = case unsnoc xs of
+  Just (_, lastElement) -> return lastElement
+  Nothing -> throwError $ BadSpecialForm "no value found in cond clause" (List (cond : []))
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args =
@@ -513,7 +534,7 @@ eqvList equalFunc [(List xs), (List ys)] = return $ Bool $ (length xs == length 
       _ -> False
 eqvList _ [] = throwError $ NumArgs 2 []
 eqvList _ singleItemList@[_] = throwError $ NumArgs 2 singleItemList
-eqvList _ [arg1 , _] = throwError $ TypeMismatch "list" arg1
+eqvList _ [arg1, _] = throwError $ TypeMismatch "list" arg1
 eqvList _ badArgsList = throwError $ NumArgs 2 badArgsList
 
 -- Error Checking and Exceptions Chapter:
