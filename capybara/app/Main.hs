@@ -277,13 +277,37 @@ eval (List [Atom "if", pred_, conseq, alt]) =
 -- (cond ((> 3 2) 'greater)
 --       ((< 3 2) 'lesser)
 --       (else 'equal))
-eval (List ((Atom "cond") : cases)) = evalCond cases
+eval (List ((Atom "cond") : clauses)) = evalCond clauses
+eval (List ((Atom "case") : key : clauses)) = eval key >>= evalCase clauses
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval _ = Left $ Default "not implemented yet"
 
+-- clause => ((<datum1> ...) <expression1> <expression2> ...),
+-- where each <datum> is an external representation of some object.
+-- All the <datum>s must be distinct. The last <clause> may be an ``else clause,'' which has the form
+evalCase :: [LispVal] -> LispVal -> ThrowsError LispVal
+evalCase [] key = throwError $ BadSpecialForm "no clause matched for key" key
+evalCase (form@(List (Atom "else" : exprs)) : []) _ = mapM eval exprs >>= getCaseExpr form
+evalCase (form@(List (Atom "else" : _)) : _) _ =
+  throwError $ BadSpecialForm "malformed case clause: non final else clause" form
+evalCase (form@(List ((List datums) : exprs)) : clauses) key = do
+  matches <- findMatchingDatum datums
+  if matches then mapM eval exprs >>= getCaseExpr form else evalCase clauses key
+  where
+    findMatchingDatum (datum : rest) = case eqv [key, datum] of
+      Right (Bool True) -> return True
+      _ -> findMatchingDatum rest
+    findMatchingDatum [] = return False
+evalCase (badStuff : _) _ = throwError $ BadSpecialForm "malformed case clause" badStuff
+
+getCaseExpr :: LispVal -> [LispVal] -> ThrowsError LispVal
+getCaseExpr form exprs = case unsnoc exprs of
+  Just (_, lastElement) -> return lastElement
+  Nothing -> throwError $ BadSpecialForm "no value found in exprs that matched key" form
+
 -- NOTE(emi): according to R5RS spec (:nerd_emoji:) we kinda have to consider here that val can be a
 --            list of values in which case what should actually be returned from a case is the last value in
---            that list.
+--            that list. we do that in `getConseqVal`
 evalCond :: [LispVal] -> ThrowsError LispVal
 evalCond [] = throwError $ BadSpecialForm "no clause matched" (List [])
 evalCond (List (Atom "else" : conseqs) : []) = mapM eval conseqs >>= getConseqVal (Atom "else")
@@ -515,14 +539,15 @@ equal :: [LispVal] -> ThrowsError LispVal
 equal listPair@[List _, List _] = eqvList equal listPair
 equal [(DottedList xs x), (DottedList ys y)] = equal [List $ xs ++ [x], List $ ys ++ [y]]
 equal [arg1, arg2] = do
-  -- TODO(emi): the problem is that for a list it finds no unpacker and then just does eqv but we dont want that
   primitiveEquals <-
     liftM or $
       mapM
         (unpackEquals arg1 arg2)
         [AnyUnpacker unpackNum, AnyUnpacker unpackString, AnyUnpacker unpackBool]
   eqvEquals <- eqv [arg1, arg2]
-  return $ Bool $ (primitiveEquals || let (Bool x) = eqvEquals in x)
+  case eqvEquals of
+    Bool x -> return $ Bool $ (primitiveEquals || x)
+    _ -> return $ Bool $ primitiveEquals
 equal badArgList = throwError $ NumArgs 2 badArgList
 
 eqvList :: ([LispVal] -> ThrowsError LispVal) -> [LispVal] -> ThrowsError LispVal
