@@ -266,6 +266,7 @@ eval val@(Float _) = return val
 eval val@(Rational _) = return val
 eval val@(Complex _) = return val
 eval val@(Bool _) = return val
+eval val@(Character _) = return val
 eval (List [Atom "quote", val]) = return val -- NOTE(emi): quote -> dont eval
 eval (List [Atom "if", pred_, conseq, alt]) =
   do
@@ -369,6 +370,10 @@ primitives =
     ("string>?", strBoolBinop (>)),
     ("string<=?", strBoolBinop (<=)),
     ("string>=?", strBoolBinop (>=)),
+    ("string-length", stringLength),
+    ("string-ref", stringRef),
+    ("make-string", makeString),
+    -- ("string-set", _)
     ("car", car),
     ("cdr", cdr),
     ("cons", cons),
@@ -523,6 +528,31 @@ cons [x, List xs] = return $ List $ x : xs
 cons [x, DottedList xs xlast] = return $ DottedList (x : xs) xlast
 cons [x1, x2] = return $ DottedList [x1] x2
 cons badArgList = throwError $ NumArgs 2 badArgList
+
+-- String Primitives
+stringLength :: [LispVal] -> ThrowsError LispVal
+stringLength [String s] = return $ Number $ fromIntegral $ length s
+stringLength [notString] = throwError $ TypeMismatch "String" notString
+stringLength badArgsList = throwError $ NumArgs 1 badArgsList
+
+stringRef :: [LispVal] -> ThrowsError LispVal
+stringRef [String s, Number i] =
+  let len = fromIntegral $ length s
+      idx = fromIntegral i
+   in if i >= 0 && i < len
+        then return $ Character $ s !! idx
+        else throwError $ Default "index out range"
+stringRef args@[_, _] = throwError $ TypeMismatch "String and Number" (List args)
+stringRef badArgsList = throwError $ NumArgs 2 badArgsList
+
+makeString :: [LispVal] -> ThrowsError LispVal
+-- NOTE(emi): no idea what to use here but since the spec says its undefined anyway null character should indicate garbage fine enough i guess?
+makeString [Number k] = return $ String $ replicate (fromIntegral k) '\0'
+makeString [Number k, Character c] = return $ String $ replicate (fromIntegral k) c
+makeString [notNumber] = throwError $ TypeMismatch "Number" notNumber
+makeString args@[_, _] = throwError $ TypeMismatch "Number and Character" (List args)
+-- NOTE(emi): technically could be 1 or 2 but here we should hit cases above 2 so lets just say 2 is the max
+makeString badArgsList = throwError $ NumArgs 2 badArgsList 
 
 -- TODO(emi): the full number stack is missing again (bcs im not sure how to do that yet aaaaa)
 eqv :: [LispVal] -> ThrowsError LispVal
