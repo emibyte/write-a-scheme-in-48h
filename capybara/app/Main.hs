@@ -4,8 +4,10 @@ module Main (main) where
 
 import Control.Monad (liftM)
 import Control.Monad.Except
+import Control.Monad.IO.Class
 import Data.Array
 import Data.Complex
+import Data.IORef
 import Data.List (unsnoc)
 import Data.Ratio
 import Numeric
@@ -35,6 +37,32 @@ until_ pred prompt action = do
 
 runRepl :: IO ()
 runRepl = until_ (== "quit") (readPrompt "LISP>>> ") evalAndPrint
+
+-- Variable and assignments
+type Env = IORef [(String, IORef LispVal)]
+
+nullEnv :: IO Env
+nullEnv = newIORef []
+
+type IOThrowsErrror = ExceptT LispError IO
+
+liftThrows :: ThrowsError a -> IOThrowsErrror a
+liftThrows (Left err) = throwError err
+liftThrows (Right val) = return val
+
+runIOThrows :: IOThrowsErrror String -> IO String
+runIOThrows action = runExceptT (trapError action) >>= return . extractValue
+
+isBound :: Env -> String -> IO Bool
+isBound envRef var = readIORef envRef >>= return . maybe False (const True) . lookup var
+
+getVar :: Env -> String -> IOThrowsErrror LispVal
+getVar envRef var = do
+  env <- liftIO $ readIORef envRef
+  maybe
+    (throwError $ UnboundVar "variable not bound" var)
+    (liftIO . readIORef)
+    (lookup var env)
 
 data LispVal
   = Atom String
