@@ -1,4 +1,4 @@
-# Revision history for myProject
+# Revision history for capybara
 
 ## 0.1.0.0 -- YYYY-mm-dd
 

@@ -54,7 +54,7 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
-executable myProject
+executable capybara
     -- Import common warning flags.
     import:           warnings
 
