@@ -145,7 +145,7 @@ spaces = skipMany1 (void space <|> comment)
 
 -- NOTE(emi): comment is a ; followed by anything until a newline character
 --            needs to be () so it can be used with my spaces
---            (that is the only way to integrate comments as far as i an tell)
+--            (integrating it into spaces was the way i figured i could get comments)
 comment :: Parser ()
 comment = char ';' >> manyTill anyChar newline >> return ()
 
