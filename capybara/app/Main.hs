@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import Control.Monad (liftM)
+import Control.Monad (liftM, void)
 import Control.Monad.Except
 import Control.Monad.IO.Class
 import Data.Array
@@ -141,7 +141,13 @@ symbol :: Parser Char
 symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 
 spaces :: Parser ()
-spaces = skipMany1 space
+spaces = skipMany1 (void space <|> comment)
+
+-- NOTE(emi): comment is a ; followed by anything until a newline character
+--            needs to be () so it can be used with my spaces
+--            (that is the only way to integrate comments as far as i an tell)
+comment :: Parser ()
+comment = char ';' >> manyTill anyChar newline >> return ()
 
 readOrThrow :: Parser a -> String -> ThrowsError a
 readOrThrow parser input = case parse parser "lisp" input of
