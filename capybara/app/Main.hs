@@ -39,11 +39,11 @@ primitiveBindings :: IO Env
 primitiveBindings =
   nullEnv
     >>= ( flip bindVars $
-            map (makeFunc PrimitiveFunc) primitives
-              ++ map (makeFunc IOFunc) ioPrimitives
+            map (makeFunction PrimitiveFunc) primitives
+              ++ map (makeFunction IOFunc) ioPrimitives
         )
   where
-    makeFunc constructor (var, func) = (var, constructor func)
+    makeFunction constructor (var, func) = (var, constructor func)
 
 runOne :: [String] -> IO ()
 runOne args = do
@@ -519,15 +519,21 @@ readProc badArgs = throwError $ NumArgs 1 badArgs
 writeProc :: [LispVal] -> IOThrowsError LispVal
 writeProc [obj] = writeProc [obj, Port stdout]
 writeProc [obj, Port port] = liftIO $ hPrint port obj >> (return $ Bool True)
+writeProc [_, badType] = throwError $ TypeMismatch "Port" badType
+writeProc badArgs = throwError $ NumArgs 2 badArgs
 
 readContents :: [LispVal] -> IOThrowsError LispVal
 readContents [String filename] = liftM String $ liftIO $ readFile filename
+readContents [badType] = throwError $ TypeMismatch "String" badType
+readContents badArgs = throwError $ NumArgs 1 badArgs
 
 load :: String -> IOThrowsError [LispVal]
 load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
 
 readAll :: [LispVal] -> IOThrowsError LispVal
 readAll [String filename] = liftM List $ load filename
+readAll [badType] = throwError $ TypeMismatch "String" badType
+readAll badArgs = throwError $ NumArgs 1 badArgs
 
 primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives =
@@ -601,7 +607,6 @@ unaryOp op [param] = return $ op param
 unaryOp op (param : _) = return $ op param
 unaryOp _ [] = throwError $ NumArgs 1 []
 
--- TODO(emi): probably pattern match on params instead of the if then else
 boolBinop :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] -> ThrowsError LispVal
 boolBinop unpacker op params =
   if length params /= 2
